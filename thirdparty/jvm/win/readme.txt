@@ -1,0 +1,1 @@
+Taken from Oracle jdk1.6.0_27
