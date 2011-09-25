@@ -1,0 +1,58 @@
+C++/JVM (a.k.a cppjvm)
+----------------------
+
+Copyright (C) 2011 Daniel Earwicker <dan@earwicker.com>
+
+
+Inspired by the lacklustre response to this question:
+
+  http://stackoverflow.com/questions/7537822/
+
+Also inspired by C++/CLI (hence the name). You can include Java classes
+in your C++ program:
+
+   #include <java/util/regex/Pattern.hpp>
+   #include <java/util/regex/Matcher.hpp>
+   #include <java/lang/CharSequence.hpp>
+
+You can import the corresponding namespaces:
+
+    using namespace java::lang;
+    using namespace java::util::regex;
+
+You can call methods of those classes in your C++ code, exactly as 
+you'd expect:
+
+    Pattern pattern = Pattern::compile("\\{[a-z]*\\}");
+
+    Matcher matcher = pattern.matcher(
+      String("Some of the {words} in this {sentence} are {special}"));
+
+    while (matcher.find())
+      std::cout << matcher.group().str() << std::endl;
+
+To get started, make sure you have a JDK installed, and you've added the
+JDK and JRE bin directories to your PATH environment variable. You must
+also set JAVA_HOME to point to the JDK directory itself.
+
+On Windows you'll need Cygwin installed, as GNU make is used.
+
+Once you have these prerequisited, just run make to build everything.
+If it's successful, you'll see a "Perfect :)" message when the tests
+run.
+
+
+
+PUBLIC LICENSE
+
+Copyright (C) 2011 Daniel Earwicker <dan@earwicker.com>
+
+TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+
+This program is free software. It comes without any warranty, to
+the extent permitted by applicable law. You can redistribute it
+and/or modify it in any way you wish, as long as you do not
+attribute the modifications to the original author.
+
+
+
