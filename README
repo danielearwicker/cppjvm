@@ -37,7 +37,7 @@ also set JAVA_HOME to point to the JDK directory itself.
 
 On Windows you'll need Cygwin installed, as GNU make is used.
 
-Once you have these prerequisited, just run make to build everything.
+Once you have these prerequisites, just run make to build everything.
 If it's successful, you'll see a "Perfect :)" message when the tests
 run.
 
