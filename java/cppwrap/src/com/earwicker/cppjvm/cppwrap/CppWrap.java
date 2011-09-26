@@ -75,26 +75,31 @@ public class CppWrap {
         return fileData.toString();
     }
 
-    public static void saveIfDifferent(String path, String content) throws Exception {
+    public static int saveIfDifferent(String path, String content) throws Exception {
         String oldContent = load(path);
         if (!oldContent.equals(content)) {
             System.out.println("Saving new version: " + path);
             save(path, content);
+            return 1;
         }
+        return 0;
     }
 
-    public static void generate(Class<?> cls, File out) throws Exception
+    public static int generate(Class<?> cls, File out) throws Exception
     {
-        if (cls.getDeclaringClass() != null)
-            return;
+    	int generated = 0;
+        if (!isWrapped(cls))
+            return generated;
 
         char sl = File.separatorChar;
 
-        saveIfDifferent(out.getPath() + sl + "include" + sl + cls.getName().replace('.', sl) + ".hpp",
+        generated += saveIfDifferent(out.getPath() + sl + "include" + sl + cls.getName().replace('.', sl) + ".hpp",
             new HeaderGenerator().toString(cls));
 
-        saveIfDifferent(out.getPath() + sl + cls.getName().replace('.', '_') + ".cpp",
+        generated += saveIfDifferent(out.getPath() + sl + cls.getName().replace('.', '_') + ".cpp",
             new ImplementationGenerator().toString(cls));
+        
+        return generated;
     }
 
     // Returns a list of types that the given type is assignment-compatible with
@@ -139,7 +144,7 @@ public class CppWrap {
     public static Iterable<Class<?>> getRequiredTypes(Class<?> cls, int depth) {
         HashSet<Class<?>> req = new HashSet<Class<?>>();
         getRequiredTypes(cls, req, depth);
-        return req;        
+        return sortClasses(req);        
     }
 
     public static Iterable<Class<?>> getDirectlyRequiredTypes(Class<?> cls) {
@@ -150,6 +155,16 @@ public class CppWrap {
         getRequiredTypes(cls, required, Integer.MAX_VALUE);
     }
 
+    public static List<Class<?>> sortClasses(Collection<Class<?>> classes) {
+    	List<Class<?>> sorted = new ArrayList<Class<?>>(classes);
+        Collections.sort(sorted, new Comparator<Class<?>>() {
+			public int compare(Class<?> arg0, Class<?> arg1) {
+				return arg0.getName().compareTo(arg1.getName());
+			}
+        });
+        return sorted;
+    }
+    
     public static void main(String[] args) throws Exception
     {
         if (args.length < 2)
@@ -159,9 +174,13 @@ public class CppWrap {
             Set<Class<?>> required = new HashSet<Class<?>>();
             for (int a = 1; a < args.length; a++)
                 getAllRequiredTypes(Class.forName(args[a]), required);
-
-            for (Class<?> cls : required) 
-                generate(cls, new File(args[0]));
+            
+            int count = 0;
+            for (Class<?> cls : sortClasses(required)) 
+                count += generate(cls, new File(args[0]));
+            
+            if (count == 0)
+            	System.out.println("All wrapped Java classes were already up to date");
         }
     }
 }

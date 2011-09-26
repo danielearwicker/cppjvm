@@ -128,6 +128,8 @@ namespace jvm
 
 		accessor_ operator[](jsize index) const
 			{ return accessor_(*this, index); }
+		accessor_ operator[](int index) const // VC++2008 needs this when using int literals
+			{ return accessor_(*this, index); }
 	};
 }
 

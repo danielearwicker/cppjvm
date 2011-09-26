@@ -38,8 +38,8 @@ public class ImplementationGenerator extends SourceGenerator {
         out().println("    return cached_class;");
         out().println("}");
         
-        out().println("static jmethodID cached_constructors[" + cls().getConstructors().length + "];");
-        out().println("static jmethodID cached_methods[" + cls().getMethods().length + "];");
+        out().println("static jmethodID cached_constructors[" + (cls().getConstructors().length + 1) + "];");
+        out().println("static jmethodID cached_methods[" + (cls().getMethods().length + 1) + "];");
     }
 
     protected void defineConstructors() throws Exception {

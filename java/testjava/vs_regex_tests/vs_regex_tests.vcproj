@@ -41,7 +41,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="..\..\jbridge\include;..\..\jniutil\include;..\..\..\thirdparty\jvm\win\include"
+				AdditionalIncludeDirectories="..\..\cppjvm\include;..\..\jniutil\include;..\..\..\thirdparty\jvm\win\include"
 				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -61,7 +61,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="libjbridge.lib libjniutil.lib jvm.lib"
+				AdditionalDependencies="libcppjvm.lib libjniutil.lib jvm.lib"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="..\..\..\lib;..\..\..\thirdparty\jvm\win\lib"
 				GenerateDebugInformation="true"

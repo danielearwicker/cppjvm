@@ -5,6 +5,7 @@
 #include "assert.hpp"
 
 #include <string.h>
+#include <vector>
 
 void test_bytearray()
 {

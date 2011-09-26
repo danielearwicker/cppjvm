@@ -6,7 +6,6 @@
 
 #include <sstream>
 #include <iostream>
-#include <vector>
 
 template <class T>
 std::string toString(const T &v)
@@ -42,23 +41,72 @@ struct test
 {
 	const char *descr;
 	test_func *func;
+	test *next;
+
+	test(const char *d,
+		test_func *f,
+		test *n) 
+		: descr(d), 
+		  func(f), 
+		  next(n) {}
 };
 
 class test_registration
 {
 public:
-	static std::vector<test> &list()
+	static test **head()
 	{
-		static std::vector<test> l;
-		return l;
+		static test *h = 0;
+		return &h;
 	}
 
 	test_registration(const char *descr, test_func *func)
 	{
-		test t;
-		t.descr = descr;
-		t.func = func;
-		list().push_back(t);
+		*(head()) = new test(descr, func, *(head()));
+	}
+
+	static int run()
+	{
+		int failed = 0;
+
+		try
+		{
+			std::cout << "Running tests..." << std::endl;
+
+			for (test *t = *(head()); t != 0; t = t->next)
+			{
+				try
+				{
+					std::cout << "Running " << t->descr << "..." << std::endl;
+					t->func();
+				}
+				catch (const std::exception &e)
+				{
+					failed++;
+					std::cout << e.what() << std::endl;
+				}
+			}
+
+			if (failed == 0)
+				std::cout << "Perfect :)" << std::endl;
+			else
+				std::cout << std::endl << failed << " failed :(" << std::endl;
+		}
+		catch (const std::exception &e)
+		{
+			std::cout << "General problem starting Java tests" << e.what() << std::endl;
+		}
+
+		test *d = *(head()); 
+		while (d != 0)
+		{
+			test *n = d->next;
+			delete d;
+			d = n;
+		}
+		*(head()) = 0;
+
+		return failed;
 	}
 };
 

@@ -7,8 +7,7 @@
 
 # Rule to create the executable output directory
 $(bindir) :
-	mkdir $(bindir)
-	$(foreach dl,$(wildcard $(foreach tp,$(thirdparty_packages),$(tp)dll/*)),-cp $(dl) $(bindir))
+	mkdir $(bindir) $(foreach dl,$(wildcard $(foreach tp,$(thirdparty_packages),$(tp)dll/*)),; cp $(dl) $(bindir))
 
 
 # Rule to create the object output directory
