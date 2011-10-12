@@ -9,11 +9,23 @@ public class CppWrap {
     private static java.util.HashMap<Class<?>, String> primitives;
     private static java.util.HashSet<String> reserved;
 
+    private static PrintWriter log;
+    private static void println(String str) {
+        if (log != null)
+            log.println(str);
+    }
+
     static {
         reserved = new java.util.HashSet<String>();
         reserved.add("delete");
         reserved.add("union");
-
+        reserved.add("and");
+        reserved.add("or");
+        reserved.add("xor");
+        reserved.add("not");
+        reserved.add("NULL");
+        reserved.add("register");
+        
         primitives = new java.util.HashMap<Class<?>, String>();
         primitives.put(void.class, "void");
         primitives.put(boolean.class, "jboolean");
@@ -26,7 +38,23 @@ public class CppWrap {
         primitives.put(char.class, "jchar");
     }
 
-    
+    public static String nestedName(Class<?> cls, boolean namespace) {
+        
+        String name = cls.getSimpleName();
+
+        while (cls.getDeclaringClass() != null) {
+            cls = cls.getDeclaringClass();
+            name = cls.getSimpleName() + "_n::" + name;
+        }
+
+        if (namespace) {
+            String packageName = cls.getPackage().getName();
+            name = packageName.replaceAll("\\.", "::") + "::" + name;
+        }
+        
+        return name;
+    }
+
     public static String cppType(Class<?> j) throws Exception {
         if (j == null)
             return "jobject";
@@ -39,16 +67,11 @@ public class CppWrap {
         if (j.isArray())
             return "::jvm::array< " + cppType(j.getComponentType()) + " >";
 
-        // very poor support for nested classes!
-        if (j.getDeclaringClass() != null)
-            return "jobject";
-
-        return "::" + j.getName().replaceAll("\\.", "::");
+        return "::" + nestedName(j, true);
     }
 
     public static boolean isWrapped(Class<?> cls) {
-        // Can't wrap nested classes yet...
-        return !cls.isPrimitive() && cls.getDeclaringClass() == null;
+        return !cls.isPrimitive();
     }
 
     public static String fixName(String name) {
@@ -78,14 +101,15 @@ public class CppWrap {
     public static int saveIfDifferent(String path, String content) throws Exception {
         String oldContent = load(path);
         if (!oldContent.equals(content)) {
-            System.out.println("Saving new version: " + path);
+            println("Saving new version: " + path);
             save(path, content);
             return 1;
         }
         return 0;
     }
 
-    public static int generate(Class<?> cls, File out) throws Exception
+    public static int generate(Class<?> cls, File out, 
+        List<String> files, boolean generating) throws Exception
     {
     	int generated = 0;
         if (!isWrapped(cls))
@@ -93,12 +117,24 @@ public class CppWrap {
 
         char sl = File.separatorChar;
 
-        generated += saveIfDifferent(out.getPath() + sl + "include" + sl + cls.getName().replace('.', sl) + ".hpp",
-            new HeaderGenerator().toString(cls));
+        String headerName = out.getPath() + sl + "include" + sl + 
+            cls.getName().replace('.', sl).replace('$', sl) + ".hpp";
 
-        generated += saveIfDifferent(out.getPath() + sl + cls.getName().replace('.', '_') + ".cpp",
-            new ImplementationGenerator().toString(cls));
-        
+        if (generating) {
+            generated += saveIfDifferent(headerName,
+                new HeaderGenerator().toString(cls));
+        }
+            
+        String implName = out.getPath() + sl + 
+            cls.getName().replace('.', '_').replace('$', '_') + ".cpp";
+
+        if (generating) {
+            generated += saveIfDifferent(implName,
+                new ImplementationGenerator().toString(cls));
+        }
+
+        files.add(implName);
+
         return generated;
     }
 
@@ -118,41 +154,84 @@ public class CppWrap {
 
     // Recursively builds the set of types that are referred to in the definition of
     // the given type.
-    public static void getRequiredTypes(Class<?> cls, Set<Class<?>> required, int depth) {            
+    public static void getRequiredTypes(
+            Class<?> cls, Set<Class<?>> required, 
+            Map<Class<?>, Integer> minDepths, int currentDepth) {
+
         if (cls.isArray()) {
-            getRequiredTypes(cls.getComponentType(), required, depth); // same depth
+            getRequiredTypes(cls.getComponentType(), required, minDepths, currentDepth); // same depth
             return;
         }
-        if ((depth < 0) || cls.isPrimitive() || required.contains(cls))
+
+        if (minDepths != null) {
+            Integer oldDepth = minDepths.get(cls);
+            if ((oldDepth == null) || (oldDepth > currentDepth)) {
+                minDepths.put(cls, currentDepth);
+            }
+        }
+
+        println("Considering: " + cls.getName());
+
+        if (cls.isPrimitive() || required.contains(cls))
+        {
+            if (cls.isPrimitive())
+                println("Ignoring primitive: " + cls.getName());
+
+            if (required.contains(cls))
+                println("Ignoring already found: " + cls.getName());    
+
             return;
-        required.add(cls);
-        for (Class<?> st : getSuperTypes(cls))
-            getRequiredTypes(st, required, depth - 1);
+        }
         
+        println("Requires: " + cls.getName());
+
+        required.add(cls);
+        println("Supertypes of: " + cls.getName());
+        for (Class<?> st : getSuperTypes(cls))        
+            getRequiredTypes(st, required, minDepths, currentDepth + 1);
+
+        println("Constructors of: " + cls.getName());
         for (Constructor<?> ctor : cls.getConstructors()) {
             for (Class<?> p : ctor.getParameterTypes())
-                getRequiredTypes(p, required, depth - 1);
+                getRequiredTypes(p, required, minDepths, currentDepth + 1);
         }
 
+        println("Methods of: " + cls.getName());
         for (Method m : cls.getMethods()) {
-            getRequiredTypes(m.getReturnType(), required, depth - 1);
+            println("Method " + cls.getName() + "." + m.getName());
+            getRequiredTypes(m.getReturnType(), required, minDepths, currentDepth + 1);
             for (Class<?> p : m.getParameterTypes())
-                getRequiredTypes(p, required, depth - 1);
+                getRequiredTypes(p, required, minDepths, currentDepth + 1);
         }
-    }
 
-    public static Iterable<Class<?>> getRequiredTypes(Class<?> cls, int depth) {
-        HashSet<Class<?>> req = new HashSet<Class<?>>();
-        getRequiredTypes(cls, req, depth);
-        return sortClasses(req);        
-    }
-
-    public static Iterable<Class<?>> getDirectlyRequiredTypes(Class<?> cls) {
-        return getRequiredTypes(cls, 1);
+        for (Class<?> c : cls.getClasses()) {
+            println("Nested classes of: " + cls.getName());
+            getRequiredTypes(c, required, minDepths, currentDepth); // same depth
+        }
     }
 
     public static void getAllRequiredTypes(Class<?> cls, Set<Class<?>> required) {
-        getRequiredTypes(cls, required, Integer.MAX_VALUE);
+        getRequiredTypes(cls, required, null, 0);
+    }
+
+    public static Iterable<Class<?>> getDirectlyRequiredTypes(Class<?> cls) {
+    
+        println("Directly required types for: " + cls.getName());
+    
+        HashSet<Class<?>> req = new HashSet<Class<?>>();
+        Map<Class<?>, Integer> minDepths = new HashMap<Class<?>, Integer>();
+        getRequiredTypes(cls, req, minDepths, 0);
+
+        List<Class<?>> pruned = new ArrayList<Class<?>>();
+        for (Class<?> c : req) {
+            int minDepth = minDepths.get(c);
+            println("    " + minDepth + ": " + c.getName());
+            if (minDepth <= 2) {
+                pruned.add(c);
+            }
+        }
+
+        return sortClasses(pruned);        
     }
 
     public static List<Class<?>> sortClasses(Collection<Class<?>> classes) {
@@ -165,22 +244,47 @@ public class CppWrap {
         return sorted;
     }
     
-    public static void main(String[] args) throws Exception
-    {
+    public static void main(String[] args) throws Exception {
         if (args.length < 2)
-            System.out.print("Please specify output-path and one or more Java class names");
+            System.err.print("Please specify output-path and one or more Java class names");
         else
         {
+            File outDir = new File(args[0]);
+    
+            boolean generating = true;
+    
             Set<Class<?>> required = new HashSet<Class<?>>();
-            for (int a = 1; a < args.length; a++)
-                getAllRequiredTypes(Class.forName(args[a]), required);
-            
+            for (int a = 1; a < args.length; a++) {
+                if (args[a].equals("--log")) {
+                    if (log == null) {
+                        outDir.mkdirs();
+                        log = new PrintWriter(new FileWriter(new File(outDir, "CppWrapLog.txt")));
+                    }
+                } else if (args[a].equals("--list")) {
+                    generating = false;     
+                } else if (args[a].equals("--generate")) {
+                    generating = true;
+                } else {
+                    getAllRequiredTypes(Class.forName(args[a]), required);
+                }
+            }
+
             int count = 0;
-            for (Class<?> cls : sortClasses(required)) 
-                count += generate(cls, new File(args[0]));
-            
-            if (count == 0)
-            	System.out.println("All wrapped Java classes were already up to date");
+            List<String> files = new ArrayList<String>();
+            for (Class<?> cls : sortClasses(required))
+                count += generate(cls, outDir, files, generating);
+
+            if (generating) {
+                if (count == 0)
+                    println("All wrapped Java classes were already up to date");
+            } else {
+                for (String file : files) {
+                    System.out.print(file.replace(File.separatorChar, '/') + " ");
+                }    
+            }
+
+            if (log != null)
+                log.close();
         }
     }
 }

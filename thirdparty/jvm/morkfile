@@ -1,0 +1,4 @@
+$(this)_type = thirdparty
+
+$(this)_linux_link = -L$(JAVA_HOME)/jre/lib/i386/client/ -ljvm
+

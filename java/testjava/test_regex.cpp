@@ -1,6 +1,4 @@
 #include <java/util/regex/Pattern.hpp>
-#include <java/util/regex/Matcher.hpp>
-#include <java/lang/CharSequence.hpp>
 
 #include "assert.hpp"
 

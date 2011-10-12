@@ -6,17 +6,22 @@ import java.util.*;
 import java.io.*;
 
 public class HeaderGenerator extends SourceGenerator {
+
     public void generate() throws Exception {
         beginIncludeGuard();
         globalIncludes();
-        forwardDeclareRequiredTypes();
+        includeRequiredTypes();
+        forwardDeclareRequiredTypes(); // some circular includes will not have worked
         beginNamespace(cls());
+        
         beginClass();
         declareConstructors();
         declareConversions();
         declareMethods();
+        declareFields();
         declareSpecialStringFeatures();
         endClass();
+        
         endNamespace(cls());
         endIncludeGuard();
     }
@@ -122,7 +127,7 @@ public class HeaderGenerator extends SourceGenerator {
             out().println(Modifier.isStatic(m.getModifiers()) ? ");" : ") const;");
         }
     }
-    
+
     protected void declareSpecialStringFeatures() {
         if (!cls().equals(String.class))
             return;
@@ -144,5 +149,47 @@ public class HeaderGenerator extends SourceGenerator {
         out().println("    operator ::std::wstring()");
         out().println("        { return ::jvm::global_vm().wstring((jstring)get_impl()); }");
     }
+
+    void declareFields() throws Exception {
+        for (Field f : cls().getFields()) {
+            if (isFieldHidden(f))
+                continue;
+
+            if (f.getType().isPrimitive() &&
+                !f.getType().equals(Double.TYPE) &&
+                !f.getType().equals(Float.TYPE) &&
+                Modifier.isStatic(f.getModifiers()) &&
+                Modifier.isFinal(f.getModifiers())) {
+
+                String val = f.get(null).toString();
+                
+                if (f.getType().equals(Character.TYPE)) {
+                    val = "" + (int)val.charAt(0);
+                }
+                
+                out().print("    static const " + 
+                    CppWrap.cppType(f.getType()) + " " + 
+                    CppWrap.fixName(f.getName()) + " = " +
+                    val);
+                
+                if(f.getType().equals(Long.TYPE)) {
+                	out().print("LL");
+                }
+                
+                out().println(";");
+            }
+            out().println("    " + 
+                (Modifier.isStatic(f.getModifiers()) ? "static " : "") + 
+                CppWrap.cppType(f.getType()) + " get_" + 
+                CppWrap.fixName(f.getName()) + "()" +
+                (Modifier.isStatic(f.getModifiers()) ? ";" : "const;")
+            );
+            out().print("    " + 
+                (Modifier.isStatic(f.getModifiers()) ? "static void set_" : "void set_") + 
+                CppWrap.fixName(f.getName()) + "(");
+            listParameters(new Class<?>[] { f.getType() }, DECLARE_TYPES);
+            out().println(Modifier.isStatic(f.getModifiers()) ? ");" : ") const;");
+        }
+    }    
 }
 

@@ -30,15 +30,6 @@ namespace jvm
 		explicit object(jobject o = 0)
 			: m_object(o) {}
 
-		object &operator=(jobject o)
-		{ 
-			m_object = o;
-			return *this;
-		}
-
-		operator jobject() const
-			{ return m_object; }
-
 		jobject get_impl() const
 			{ return m_object; }
 
@@ -49,6 +40,9 @@ namespace jvm
 
 		bool is_null() const
 			{ return m_object == 0; }
+
+        void set_null()
+            { m_object = 0; }
 
 	protected:
 		void make_global();
@@ -76,7 +70,7 @@ namespace jvm
 	}
 
 	template <class TNew, class TArg1, class TArg2>
-	TNew jnew(const TArg1 &a1, const TArg1 &a2)
+	TNew jnew(const TArg1 &a1, const TArg2 &a2)
 	{
 		TNew o;
 		o.new_(a1, a2);
@@ -84,7 +78,7 @@ namespace jvm
 	}
 
 	template <class TNew, class TArg1, class TArg2, class TArg3>
-	TNew jnew(const TArg1 &a1, const TArg1 &a2, const TArg1 &a3)
+	TNew jnew(const TArg1 &a1, const TArg2 &a2, const TArg3 &a3)
 	{
 		TNew o;
 		o.new_(a1, a2, a3);
@@ -92,7 +86,7 @@ namespace jvm
 	}
 
 	template <class TNew, class TArg1, class TArg2, class TArg3, class TArg4>
-	TNew jnew(const TArg1 &a1, const TArg1 &a2, const TArg1 &a3, const TArg1 &a4)
+	TNew jnew(const TArg1 &a1, const TArg2 &a2, const TArg3 &a3, const TArg4 &a4)
 	{
 		TNew o;
 		o.new_(a1, a2, a3, a4);
@@ -101,8 +95,8 @@ namespace jvm
 
 	template <class TNew, class TArg1, class TArg2, class TArg3, 
 		  class TArg4, class TArg5>
-	TNew jnew(const TArg1 &a1, const TArg1 &a2, const TArg1 &a3, 
-		  const TArg1 &a4, const TArg1 &a5)
+	TNew jnew(const TArg1 &a1, const TArg2 &a2, const TArg3 &a3, 
+		  const TArg4 &a4, const TArg5 &a5)
 	{
 		TNew o;
 		o.new_(a1, a2, a3, a4, a5);
@@ -111,8 +105,8 @@ namespace jvm
 
 	template <class TNew, class TArg1, class TArg2, class TArg3, class TArg4, 
 		  class TArg5, class TArg6>
-	TNew jnew(const TArg1 &a1, const TArg1 &a2, const TArg1 &a3, const TArg1 &a4, 
-		  const TArg1 &a5, const TArg1 &a6)
+	TNew jnew(const TArg1 &a1, const TArg2 &a2, const TArg3 &a3, const TArg4 &a4, 
+		  const TArg5 &a5, const TArg6 &a6)
 	{
 		TNew o;
 		o.new_(a1, a2, a3, a4, a5, a6);
@@ -121,8 +115,8 @@ namespace jvm
 
 	template <class TNew, class TArg1, class TArg2, class TArg3, class TArg4, 
 		  class TArg5, class TArg6, class TArg7>
-	TNew jnew(const TArg1 &a1, const TArg1 &a2, const TArg1 &a3, const TArg1 &a4, 
-		  const TArg1 &a5, const TArg1 &a6, const TArg1 &a7)
+	TNew jnew(const TArg1 &a1, const TArg2 &a2, const TArg3 &a3, const TArg4 &a4, 
+		  const TArg5 &a5, const TArg6 &a6, const TArg7 &a7)
 	{
 		TNew o;
 		o.new_(a1, a2, a3, a4, a5, a6, a7);
@@ -131,8 +125,8 @@ namespace jvm
 
 	template <class TNew, class TArg1, class TArg2, class TArg3, class TArg4, 
 		  class TArg5, class TArg6, class TArg7, class TArg8>
-	TNew jnew(const TArg1 &a1, const TArg1 &a2, const TArg1 &a3, const TArg1 &a4, 
-		  const TArg1 &a5, const TArg1 &a6, const TArg1 &a7, const TArg1 &a8)
+	TNew jnew(const TArg1 &a1, const TArg2 &a2, const TArg3 &a3, const TArg4 &a4, 
+		  const TArg5 &a5, const TArg6 &a6, const TArg7 &a7, const TArg8 &a8)
 	{
 		TNew o;
 		o.new_(a1, a2, a3, a4, a5, a6, a7, a8);

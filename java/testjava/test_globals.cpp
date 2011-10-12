@@ -1,15 +1,40 @@
 #include "assert.hpp"
 
 #include <java/lang/System.hpp>
+#include <java/lang/String.hpp>
 #include <jvm/local_frame.hpp>
 #include <jvm/global.hpp>
+
+using namespace java::lang;
+using namespace jvm;
+
+global<String> g_str;
+
+struct git_t
+{
+    git_t()
+    {
+        g_str = jnew<String>("JVM has started up...");
+        System::get_out().println(g_str);
+    }
+
+    ~git_t()
+    {
+        System::get_out().println("JVM is about to close down...");
+        g_str.set_null();
+    }
+};
+
+/*  Just declare a wrapped instance at global scope, and it will
+    be constructed right after the JVM is initialized, and will
+    be deleted shortly before it is destroyed.
+*/
+global_init_enlist<git_t> git;
 
 #define QBF "The quick brown fox jumped over the lazy dog."
 
 void test_globals()
 {
-	using namespace java::lang;
-	using namespace jvm;
 
 	/*	If the declaration of s1 doesn't use java::global (as in
 		the commented out version) then the assertion at the bottom

@@ -1,22 +1,44 @@
 #include <jvm/virtual_machine.hpp>
 #include <jvm/object.hpp>
+#include <jvm/local_frame.hpp>
 
 #include <util/utilutf8.h>
 #include <util/utilwide.h>
+
+#include <vector>
+#include <algorithm>
 
 void jvm::virtual_machine::create(const std::string &classPath)
 {
 	JavaVMInitArgs args;
 	
 	args.version = JNI_VERSION_1_2;
-	args.nOptions = 1;
-
+	
 	std::string o("-Djava.class.path=");
-	o += classPath;
+
+	std::string fixedPath(classPath);
+	for (size_t n = 0; n < fixedPath.size(); n++)
+	{
+		if (fixedPath[n] == '/' || fixedPath[n] == '\\')
+		{
+#ifdef CONFIG_VARIANT_windows
+			#define realpath(N,R) _fullpath((R),(N),1024)
+			fixedPath[n] = '\\';
+#else
+			fixedPath[n] = '/';
+#endif
+		}
+	}
+
+	char chFull[1024];
+	realpath(fixedPath.c_str(), chFull);
+	o += chFull;
 
 	JavaVMOption options[1];
 	options[0].optionString = const_cast<char *>(o.c_str());
+	//options[1].optionString = "-verbose:jni";
 
+	args.nOptions = sizeof(options) / sizeof(JavaVMOption);
 	args.options = options;
 	args.ignoreUnrecognized = JNI_FALSE;
 
@@ -47,6 +69,8 @@ JNIEnv *jvm::virtual_machine::env(JNIEnv *e) const
 void jvm::virtual_machine::check_exception(JNIEnv *e) const
 {
     e = env(e);
+
+	local_frame lf(16, e);
 
 	jthrowable x = e->ExceptionOccurred();
 	if (x != 0)
@@ -114,6 +138,47 @@ jstring jvm::virtual_machine::string(const std::wstring &v, JNIEnv *e) const
 jvm::virtual_machine *g_vm = 0;
 jvm::virtual_machine g_vm_default;
 
+static std::vector<jvm::global_init_enlist_base *> *g_inits = 0;
+static std::vector<jvm::global_init_enlist_base *> &global_inits()
+{
+    if (g_inits == 0)
+        g_inits = new std::vector<jvm::global_init_enlist_base *>;
+
+    return *g_inits;
+}
+
+void global_init_startup()
+{
+    for (int n = 0; n < global_inits().size(); n++)
+        global_inits()[n]->startup();
+}
+
+// declared after g_vm_default, so will destruct before
+struct global_init_cleanup
+{
+    ~global_init_cleanup()
+    {
+        // each will delist itself
+        while (!global_inits().empty())
+            global_inits()[0]->cleanup();
+    }
+}
+global_init_cleanup;
+
+void jvm::enlist(global_init_enlist_base *init)
+{
+    global_inits().push_back(init);
+}
+
+void jvm::delist(global_init_enlist_base *init)
+{
+    global_inits().erase(
+        std::remove(
+            global_inits().begin(), 
+            global_inits().end(), init),
+        global_inits().end());
+}
+
 void jvm::create_global_vm(const std::string &classPath)
 {
 	if (g_vm != 0)
@@ -121,6 +186,8 @@ void jvm::create_global_vm(const std::string &classPath)
 
 	g_vm_default.create(classPath);
 	g_vm = &g_vm_default;
+	
+	global_init_startup();
 }
 
 jvm::virtual_machine &jvm::global_vm()

@@ -1,0 +1,6 @@
+$(this)_type = jar
+
+refresh_cppwrap:
+	cp java/cppwrap/jar/cppwrap.jar java/cppwrap/release/prebuilt_jar/cppwrap.jar
+
+.PHONY: refresh_cppwrap

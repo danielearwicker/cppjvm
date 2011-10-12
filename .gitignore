@@ -1,3 +1,8 @@
 *.obj
 *.class
 *.bak
+gen/
+lib/
+obj/
+jar/
+bin/

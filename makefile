@@ -1,3 +1,2 @@
-buildroot = .
+include morkfiles/main.makefile
 
-include $(buildroot)/buildscripts/directory.makefile

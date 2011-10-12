@@ -27,7 +27,7 @@ public abstract class SourceGenerator {
     }
 
     public abstract void generate() throws Exception;
-
+   
     private void editWarning() {
         out().println();
         out().println("//");
@@ -40,18 +40,43 @@ public abstract class SourceGenerator {
 
     protected void include(Class<?> cls) {
         if (CppWrap.isWrapped(cls))
-            out().println("#include <" + cls.getName().replace('.', '/') + ".hpp>");
+            out().println("#include <" + cls.getName().replace('.', '/').replace('$', '/') + ".hpp>");
+    }
+
+    protected void includeRequiredTypes() throws Exception {
+        for (Class<?> required : CppWrap.getDirectlyRequiredTypes(cls())) {
+            include(required);
+        }
     }
 
     protected void beginNamespace(Class<?> cls) {
+
+        out().println("// name: " + cls.getName());
         String[] namespaces = cls.getName().split("\\.");
         for (int n = 0; n < (namespaces.length - 1); n++)
             out().print(" namespace " + namespaces[n] + " {");
+
+        List<String> names = new ArrayList<String>();
+        for (Class<?> c = cls.getDeclaringClass(); c != null; c = c.getDeclaringClass()) {
+            out().println("// declaringClass: " + c.getName());
+            names.add(c.getSimpleName() + "_n");
+        }
+        Collections.reverse(names);
+        for (String name : names) {
+            out().print(" namespace " + name + " {");
+        }
     }
 
     protected void endNamespace(Class<?> cls) {
-        for (int n = 0; n < cls.getName().split("\\.").length - 1; n++)
+    
+        int count = cls.getName().split("\\.").length - 1;
+        for (Class<?> c = cls.getDeclaringClass(); c != null; c = c.getDeclaringClass()) {
+            count++;
+        }
+
+        for (int n = 0; n < count; n++)
             out().print(" }");
+            
         out().println();
     }
 
@@ -66,12 +91,23 @@ public abstract class SourceGenerator {
             out().print(
                 (pos > 1 ? ", " : "") + 
                 (mode == DECLARE_TYPES 
-                    ? (CppWrap.isWrapped(p) ? ("const " + CppWrap.cppType(p) + " &") : (CppWrap.cppType(p) + " "))
-                    : "") + 
+                    ? (CppWrap.isWrapped(p) ? ("const " + CppWrap.cppType(p) + " &") 
+                                            : (CppWrap.cppType(p) + " "))
+                    : "") +
                 "args" + pos + 
                 (mode == CALL_UNWRAPPED && CppWrap.isWrapped(p) ? ".get_impl()" : "")
             );
         }
+    }
+
+    protected boolean isFieldHidden(Field field) {
+        for (Field f : cls().getFields()) {
+            if (!f.equals(field) &&
+                f.getName().equals(field.getName()) &&
+                field.getDeclaringClass().isAssignableFrom(f.getDeclaringClass()))
+                return true;
+        }
+        return false;
     }
 }
 

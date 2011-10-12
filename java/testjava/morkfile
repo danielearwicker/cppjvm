@@ -1,0 +1,5 @@
+$(this)_type = exe
+$(this)_requires = cppjvm jniutil testing
+
+$(this)_postbuild = $$($(this)_main)
+

@@ -39,35 +39,29 @@ namespace jvm
 		global() { }
 
 		global(const global<T> &o)
-			{ put_impl(o); }
+			{ put_impl(o.get_impl()); }
 
 		explicit global(const T &o)
-			{ put_impl(o); }
+			{ put_impl(o.get_impl()); }
 
 		// Destructor deletes the reference
 		~global()
 			{ T::delete_global(); }
 
-		global<T> &operator=(jobject o)
-		{ 
-			put_impl(o);
-			return *this;
-		}
-
-		operator jobject() const
-			{ return get_impl(); }
-
 		global<T> &operator=(const T &o)
 		{ 
-			put_impl(o);
+			put_impl(o.get_impl());
 			return *this;
 		}
 
 		global<T> &operator=(const global<T> &o)
 		{ 
-			put_impl(o);
+			put_impl(o.get_impl());
 			return *this;
 		}
+
+        void set_null()
+            { put_impl(0); }
 
 		jobject get_impl() const
 			{ return global_vm().env()->NewLocalRef(T::get_impl()); }

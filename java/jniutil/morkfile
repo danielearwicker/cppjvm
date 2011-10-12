@@ -1,0 +1,2 @@
+$(this)_type = static
+$(this)_requires = jvm

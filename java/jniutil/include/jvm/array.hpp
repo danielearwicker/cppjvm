@@ -15,11 +15,16 @@ namespace jvm
 	struct array_traits
 	{
 		typedef jobjectArray array_type; // The JNI array type
-		typedef T accessor_base_type; // Base for type to return from operator[]
-
+		
+		// Base for type to return from operator[]
+		struct accessor_base_type : public T
+		{
+			void assign(T o) { put_impl(o.get_impl()); }
+		};
+	
 		// Allocate an array (we assume we can get the jclass from T)
 		static array_type alloc(JNIEnv *e, jsize n)
-			{ return e->NewObjectArray(e, n, T::get_class(), 0); }
+			{ return e->NewObjectArray(n, T::get_class(), 0); }
 
 		// We assume a method T::get_impl() to obtain local reference jobjects
 		static void put(JNIEnv *e, array_type a, jsize p, const T *b, jsize c)
@@ -47,7 +52,7 @@ namespace jvm
 		T val;
 
 	public:
-		void put_impl(T o) 
+		void assign(T o) 
 			{ val = o; }
 
 		operator T()
@@ -115,12 +120,12 @@ namespace jvm
 			{
 				T v;
 				array.get(index, &v);
-				accessor_base_type::put_impl(v);
+				accessor_base_type::assign(v);
 			}
 
 			accessor_ &operator=(const T &v)
 			{
-				accessor_base_type::put_impl(v);
+				accessor_base_type::assign(v);
 				data_.put(index_, &v);
 				return *this;
 			}
@@ -128,8 +133,11 @@ namespace jvm
 
 		accessor_ operator[](jsize index) const
 			{ return accessor_(*this, index); }
-		accessor_ operator[](int index) const // VC++2008 needs this when using int literals
+#ifdef _MSC_VER
+    // not sure if this is a VC++ problem or a JNI inconsistency 
+		accessor_ operator[](int index) const
 			{ return accessor_(*this, index); }
+#endif
 	};
 }
 
