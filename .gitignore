@@ -1,3 +1,10 @@
 *.obj
 *.class
 *.bak
+*.o
+*.lib
+*~
+*.jar
+java/cppjvm/java_*.cpp
+java/cppjvm/include/java/*
+bin/*
