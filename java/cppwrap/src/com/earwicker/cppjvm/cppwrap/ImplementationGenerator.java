@@ -9,12 +9,17 @@ public class ImplementationGenerator extends SourceGenerator {
 
     public void generate() throws Exception {
         include(cls()); // include our own header, obviously
+        if (putDefinitionsInHeaders)
+        		out().println("#include <impl/class_cache.hpp>");
+        
         includeRequiredTypes();
         beginNamespace(cls());
         classInfo();
-        defineConstructors();
-        defineConversions();
-        defineMethods();
+        if (!putDefinitionsInHeaders) {
+			defineConstructors();
+			defineMethods();
+		}
+		defineConversions();
         endNamespace(cls());
     }
 
@@ -25,48 +30,39 @@ public class ImplementationGenerator extends SourceGenerator {
     }
 
     protected void classInfo() throws Exception {
-        out().println("static jclass cached_class = 0;");
-        out().println("jclass " + cls().getSimpleName() + "::get_class()");
+    		Class c = cls();
+    			
+    		if (putDefinitionsInHeaders)
+    			out().print(c.getSimpleName() + "::");
+    		else
+    			out().print("static cppjvm::impl::class_cache ");
+    		out().println("s_impl_cache(" +
+    			"\"" + c.getName().replace('.', '/') + "\", " + 
+    			c.getConstructors().length + ", " + 
+    			c.getMethods().length + 
+		");");
+        out().println("jclass " + c.getSimpleName() + "::get_class()");
         out().println("{");
-        out().println("    if (cached_class == 0)");
-        out().println("    {");
-        out().print("        cached_class = ::jvm::global_vm().env()->FindClass(\"");
-        out().print(cls().getName().replace('.', '/'));
-        out().println("\");");
-        out().println("        cached_class = (jclass)::jvm::global_vm().env()->NewGlobalRef(cached_class);");
-        out().println("    }");
-        out().println("    return cached_class;");
+        out().println("    return s_impl_cache.get_class();");
         out().println("}");
-        
-        out().println("static jmethodID cached_constructors[" + (cls().getConstructors().length + 1) + "];");
-        out().println("static jmethodID cached_methods[" + (cls().getMethods().length + 1) + "];");
     }
 
     protected void defineConstructors() throws Exception {
         int pos = 0;
         for (Constructor<?> ctor : cls().getConstructors()) {
             // void ClassName::new_(params...)
-            out().print("void " + cls().getSimpleName() + "::new_(");
+            out().print("void " + (isInHeader() ? "" : cls().getSimpleName() + "::") + "new_(");
             listParameters(ctor.getParameterTypes(), DECLARE_TYPES);
             out().println(")");
 
             out().println("{");
-            out().println("    JNIEnv *env = ::jvm::global_vm().env();");
-
-            out().println("    jmethodID i = cached_constructors[" + pos + "];");
-            out().println("    if (i == 0)");
-            out().println("    {");
-            out().println("        i = env->GetMethodID(get_class(), \"<init>\", \"" + 
-                          Signature.generate(ctor) + "\");");
-            out().println("        cached_constructors[" + pos + "] = i;");
-            out().println("    }");
             out().print(
-                "    ::jvm::object::put_impl(env->NewObject(get_class(), i" + 
+                "    ::jvm::object::put_impl(s_impl_cache.NewObject(" + pos + ", \"" + Signature.generate(ctor) + "\"" + 
                 (ctor.getParameterTypes().length != 0 ? ", " : "")
             );
             listParameters(ctor.getParameterTypes(), CALL_UNWRAPPED);
             out().println("));");
-            out().println("    ::jvm::global_vm().check_exception(env);");
+            //out().println("    ::jvm::global_vm().check_exception(env);");
             out().println("}");
             
             pos++;
@@ -82,8 +78,11 @@ public class ImplementationGenerator extends SourceGenerator {
         }
     }
 
+    protected boolean isInHeader() {
+    		return false;
+    }                                  
     protected void defineMethods() throws Exception {
-        int pos = 0;
+    		int pos = 0;
         for (Method m : cls().getMethods()) {
             if (m.isSynthetic())
                 continue;
@@ -95,24 +94,12 @@ public class ImplementationGenerator extends SourceGenerator {
 
             // return-type ClassName::methodName(params...) [const]
             out().print(CppWrap.cppType(returns) + " " + 
-                cls().getSimpleName() + "::" +
+                (isInHeader() ? "" : cls().getSimpleName() + "::") +
                 CppWrap.fixName(m.getName()) + "(");
             listParameters(params, DECLARE_TYPES);
             out().println(isStatic ? ")" : ") const");
 
             out().println("{");
-            out().println("    JNIEnv *env = ::jvm::global_vm().env();");
-
-            out().println("    jmethodID i = cached_methods[" + pos + "];");
-            out().println("    if (i == 0)");
-            out().println("    {");
-            out().println("        i = env->Get" +
-                (isStatic ? "Static" : "") +
-                "MethodID(get_class(), \"" + m.getName() + 
-                "\", \"" + Signature.generate(m) + "\");");
-            out().println("        cached_methods[" + pos + "] = i;");
-            out().println("    }");
-
             String returnFlavour = returns.isPrimitive() 
                 ? (Character.toUpperCase(returns.toString().charAt(0)) + 
                    returns.toString().substring(1))
@@ -124,15 +111,17 @@ public class ImplementationGenerator extends SourceGenerator {
                     ? "" 
                     : (CppWrap.cppType(returns) + " ret" + (CppWrap.isWrapped(returns) ? "(" : " = "))
                 ) +
-                "env->Call" + 
-                (isStatic ? "Static" : "") + returnFlavour + 
-                (isStatic ? "Method(get_class(), i" : "Method(::jvm::object::get_impl(), i") + 
+                "s_impl_cache.Call" +
+                (isStatic ? "Static" : "") + returnFlavour + "Method(" + 
+					pos + ", " +
+				"\"" + m.getName() + "\", " +
+				"\"" + Signature.generate(m) + "\"" + 
+				(isStatic ? "" : ", ::jvm::object::get_impl()") +
                 (params.length != 0 ? ", " : "")
             );
             listParameters(params, CALL_UNWRAPPED);
             out().println(CppWrap.isWrapped(returns) ? "));" : ");");
-            out().println("    ::jvm::global_vm().check_exception(env);");
-
+            
             if (!returnsVoid) {
                 out().println(CppWrap.isWrapped(returns) 
                     ? "    return ret;"

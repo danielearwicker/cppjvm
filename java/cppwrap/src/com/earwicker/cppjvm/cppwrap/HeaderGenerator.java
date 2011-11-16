@@ -6,7 +6,7 @@ import java.util.*;
 import java.io.*;
 
 public class HeaderGenerator extends SourceGenerator {
-    public void generate() throws Exception {
+	public void generate() throws Exception {
         beginIncludeGuard();
         globalIncludes();
         forwardDeclareRequiredTypes();
@@ -45,6 +45,8 @@ public class HeaderGenerator extends SourceGenerator {
         out().println("#include <jvm/virtual_machine.hpp>");
         out().println("#include <jvm/object.hpp>");
         out().println("#include <jvm/array.hpp>");
+        if (!putDefinitionsInHeaders)
+        		out().println("#include <impl/class_cache.hpp>");
     }
 
     protected void forwardDeclareRequiredTypes() throws Exception {
@@ -57,6 +59,8 @@ public class HeaderGenerator extends SourceGenerator {
         out().println();
         out().println("class " + cls().getSimpleName() + " : public ::jvm::object");
         out().println("{");
+        if (putDefinitionsInHeaders)
+        		out().println("    static cppjvm::impl::class_cache s_impl_cache;");
         out().println("public:");
 
         // Can construct from a jobject, but not implicitly to avoid accidental unsafe conversion
@@ -77,29 +81,44 @@ public class HeaderGenerator extends SourceGenerator {
     }
 
     protected void declareConstructors() throws Exception {
-        for (Constructor<?> ctor : cls().getConstructors()) {
-            Class<?>[] params = ctor.getParameterTypes();
-
-            // void new_(params...);
-            out().print("    void new_(");
-            listParameters(params, DECLARE_TYPES);
-            out().println(");");
-
-            // For non-default and non-copy constructors only:
-            if ((params.length > 1) || 
-                ((params.length == 1) && !params[0].equals(cls()))) {
-
-                // Make an actual C++ constructor
-                out().print("    explicit " + cls().getSimpleName() + "(");
-                listParameters(params, DECLARE_TYPES);
-                out().println(")");
-                out().println("    {");
-                out().print("        new_(");
-                listParameters(params, CALL_WRAPPED);
-                out().println(");");
-                out().println("    }");
-            }
-        }
+        if (putDefinitionsInHeaders) {
+			out().println(indent(new ImplementationGenerator() {
+				@Override
+				public void generate() throws Exception {
+					defineConstructors();
+				}
+				@Override
+				protected boolean isInHeader() {
+					return true;
+				}
+				@Override
+				protected void editWarning() {}
+			}.toString(cls())));
+		} else {
+            	for (Constructor<?> ctor : cls().getConstructors()) {
+				Class<?>[] params = ctor.getParameterTypes();
+	
+				// void new_(params...);
+					out().print("    void new_(");
+				listParameters(params, DECLARE_TYPES);
+				out().println(");");
+			
+				// For non-default and non-copy constructors only:
+				if ((params.length > 1) || 
+					((params.length == 1) && !params[0].equals(cls()))) {
+	
+					// Make an actual C++ constructor
+					out().print("    explicit " + cls().getSimpleName() + "(");
+					listParameters(params, DECLARE_TYPES);
+					out().println(")");
+					out().println("    {");
+					out().print("        new_(");
+					listParameters(params, CALL_WRAPPED);
+					out().println(");");
+					out().println("    }");
+				}
+			}
+		}
     }
 
     protected void declareConversions() throws Exception {
@@ -109,18 +128,33 @@ public class HeaderGenerator extends SourceGenerator {
     }
 
     protected void declareMethods() throws Exception {
-        for (Method m : cls().getMethods()) {
-            if (m.isSynthetic())
-                continue;
-
-            // [static] return-type methodName(params...) [const];
-            out().print("    " + 
-                (Modifier.isStatic(m.getModifiers()) ? "static " : "") + 
-                CppWrap.cppType(m.getReturnType()) + " " + 
-                CppWrap.fixName(m.getName()) + "(");
-            listParameters(m.getParameterTypes(), DECLARE_TYPES);
-            out().println(Modifier.isStatic(m.getModifiers()) ? ");" : ") const;");
-        }
+    		if (putDefinitionsInHeaders)
+    			out().println(indent(new ImplementationGenerator() {
+				@Override
+				public void generate() throws Exception {
+					defineMethods();
+				}
+				@Override
+				protected boolean isInHeader() {
+					return true;
+				}
+				@Override
+				protected void editWarning() {}
+			}.toString(cls())));
+    		else {
+			for (Method m : cls().getMethods()) {
+				if (m.isSynthetic())
+					continue;
+	
+				// [static] return-type methodName(params...) [const];
+				out().print("    " + 
+					(Modifier.isStatic(m.getModifiers()) ? "static " : "") + 
+					CppWrap.cppType(m.getReturnType()) + " " + 
+					CppWrap.fixName(m.getName()) + "(");
+				listParameters(m.getParameterTypes(), DECLARE_TYPES);
+				out().println(Modifier.isStatic(m.getModifiers()) ? ");" : ") const;");
+			}
+		}
     }
     
     protected void declareSpecialStringFeatures() {
