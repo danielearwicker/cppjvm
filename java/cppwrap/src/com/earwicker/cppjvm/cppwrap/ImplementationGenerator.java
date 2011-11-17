@@ -39,7 +39,7 @@ public class ImplementationGenerator extends SourceGenerator {
     		out().println("s_impl_cache(" +
     			"\"" + c.getName().replace('.', '/') + "\", " + 
     			c.getConstructors().length + ", " + 
-    			c.getMethods().length + 
+    			methods().length + 
 		");");
         out().println("jclass " + c.getSimpleName() + "::get_class()");
         out().println("{");
@@ -70,11 +70,16 @@ public class ImplementationGenerator extends SourceGenerator {
     }
 
     protected void defineConversions() throws Exception {
+    		String dummy = CppWrap.cppType(Object.class);
         for (Class<?> st : CppWrap.getSuperTypes(cls())) {
-            out().println(cls().getSimpleName() + "::operator " + CppWrap.cppType(st) + "() const");
-        	out().println("{");
-        	out().println("    return " + CppWrap.cppType(st) + "(get_impl());");
-        	out().println("}");
+        		String conv = CppWrap.cppType(st);
+        		if (conv.equals(dummy))
+        			continue;
+			
+        		out().println(cls().getSimpleName() + "::operator " + CppWrap.cppType(st) + "() const");
+			out().println("{");
+			out().println("    return " + CppWrap.cppType(st) + "(get_impl());");
+			out().println("}");
         }
     }
 
@@ -83,7 +88,7 @@ public class ImplementationGenerator extends SourceGenerator {
     }                                  
     protected void defineMethods() throws Exception {
     		int pos = 0;
-        for (Method m : cls().getMethods()) {
+        for (Method m : methods()) {
             if (m.isSynthetic())
                 continue;
 
@@ -93,6 +98,9 @@ public class ImplementationGenerator extends SourceGenerator {
             Class<?>[] params = m.getParameterTypes();
 
             // return-type ClassName::methodName(params...) [const]
+            if (isInHeader())
+            		out().print(isStatic ? "static " : ""/*"virtual "*/);
+            	
             out().print(CppWrap.cppType(returns) + " " + 
                 (isInHeader() ? "" : cls().getSimpleName() + "::") +
                 CppWrap.fixName(m.getName()) + "(");

@@ -27,28 +27,38 @@ public class CppWrap {
     }
 
     
-    public static String cppType(Class<?> j) throws Exception {
+    public static String cppType(Class<?> j) {//throws Exception {
         if (j == null)
+        		//j = Object.class;
             return "jobject";
 
         if (j.isPrimitive()) {
             String g = primitives.get(j);
-            return g == null ? "jobject" : g;
+            if (g != null)
+            		return g;
+            //return g == null ? "jobject" : g;
         }
 
         if (j.isArray())
             return "::jvm::array< " + cppType(j.getComponentType()) + " >";
 
         // very poor support for nested classes!
-        if (j.getDeclaringClass() != null)
-            return "jobject";
+        if (!shouldGenerate(j))//j.getDeclaringClass() != null)
+            j = Object.class;
+            //return "jobject";
 
         return "::" + j.getName().replaceAll("\\.", "::");
     }
 
+    public static boolean shouldGenerate(Class<?> cls) {
+    		String n = cls.getName();
+    		if (n.startsWith("sun."))
+    			return false;
+    		return cls.getDeclaringClass() == null;
+    }
     public static boolean isWrapped(Class<?> cls) {
         // Can't wrap nested classes yet...
-        return !cls.isPrimitive() && cls.getDeclaringClass() == null;
+        return !cls.isPrimitive();// && cls.getDeclaringClass() == null;
     }
 
     public static String fixName(String name) {
@@ -88,7 +98,7 @@ public class CppWrap {
     public static int generate(Class<?> cls, File out) throws Exception
     {
     	int generated = 0;
-        if (!isWrapped(cls))
+        if (!CppWrap.shouldGenerate(cls) || !isWrapped(cls))
             return generated;
 
         char sl = File.separatorChar;

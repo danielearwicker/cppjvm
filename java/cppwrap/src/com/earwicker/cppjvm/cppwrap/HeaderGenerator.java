@@ -9,6 +9,7 @@ public class HeaderGenerator extends SourceGenerator {
 	public void generate() throws Exception {
         beginIncludeGuard();
         globalIncludes();
+        includeParentType();
         forwardDeclareRequiredTypes();
         beginNamespace(cls());
         beginClass();
@@ -22,7 +23,7 @@ public class HeaderGenerator extends SourceGenerator {
     }
 
     protected void forwardDeclare(Class<?> cls) {
-        if (!CppWrap.isWrapped(cls))
+        if (!CppWrap.shouldGenerate(cls) || !CppWrap.isWrapped(cls))
             return;
 
         beginNamespace(cls);
@@ -48,6 +49,14 @@ public class HeaderGenerator extends SourceGenerator {
         if (!putDefinitionsInHeaders)
         		out().println("#include <impl/class_cache.hpp>");
     }
+    
+    protected void includeParentType() {
+    		Class superclass = cls().getSuperclass();
+    		if (superclass == null)
+    			return;
+    		
+    		out().println("#include <" + superclass.getName().replace('.', '/') + ".hpp>");
+    }
 
     protected void forwardDeclareRequiredTypes() throws Exception {
         for (Class<?> required : CppWrap.getDirectlyRequiredTypes(cls())) {
@@ -57,14 +66,21 @@ public class HeaderGenerator extends SourceGenerator {
 
     protected void beginClass() {
         out().println();
-        out().println("class " + cls().getSimpleName() + " : public ::jvm::object");
+        Class superclass = cls().getSuperclass();
+        String superclassCppName;
+        if (superclass == null) {
+        		superclassCppName = "::jvm::object";
+        } else {
+        		superclassCppName = CppWrap.cppType(superclass);//"::" + superclass.getName().replaceAll("\\.", "::");
+        }
+        out().println("class " + cls().getSimpleName() + " : public " + superclassCppName);
         out().println("{");
         if (putDefinitionsInHeaders)
         		out().println("    static cppjvm::impl::class_cache s_impl_cache;");
         out().println("public:");
 
         // Can construct from a jobject, but not implicitly to avoid accidental unsafe conversion
-        out().println("    explicit " + cls().getSimpleName() + "(jobject jobj) : object(jobj) {}");
+        out().println("    explicit " + cls().getSimpleName() + "(jobject jobj) : " + superclassCppName + "(jobj) {}");
 
         out().println("    static jclass get_class();");
 
@@ -73,7 +89,7 @@ public class HeaderGenerator extends SourceGenerator {
 
         // Copy constructor: copy reference
         out().println("    " + cls().getSimpleName() + "(const " + cls().getSimpleName() + " &other)");
-        out().println("        : object(other.get_impl()) {}");
+        out().println("        : " + superclassCppName + "(other.get_impl()) {}");
     }
 
     protected void endClass() {
@@ -122,8 +138,13 @@ public class HeaderGenerator extends SourceGenerator {
     }
 
     protected void declareConversions() throws Exception {
+    		String dummy = CppWrap.cppType(Object.class);
         for (Class<?> st : CppWrap.getSuperTypes(cls())) {
-            out().println("    operator " + CppWrap.cppType(st) + "() const;");
+        		String conv = CppWrap.cppType(st);
+        		if (conv.equals(dummy))
+        			continue;
+			
+        		out().println("    operator " + CppWrap.cppType(st) + "() const;");
         }
     }
 
@@ -142,13 +163,13 @@ public class HeaderGenerator extends SourceGenerator {
 				protected void editWarning() {}
 			}.toString(cls())));
     		else {
-			for (Method m : cls().getMethods()) {
+			for (Method m : methods()) {
 				if (m.isSynthetic())
 					continue;
 	
 				// [static] return-type methodName(params...) [const];
 				out().print("    " + 
-					(Modifier.isStatic(m.getModifiers()) ? "static " : "") + 
+					(Modifier.isStatic(m.getModifiers()) ? "static " : ""/*"virtual "*/) + 
 					CppWrap.cppType(m.getReturnType()) + " " + 
 					CppWrap.fixName(m.getName()) + "(");
 				listParameters(m.getParameterTypes(), DECLARE_TYPES);

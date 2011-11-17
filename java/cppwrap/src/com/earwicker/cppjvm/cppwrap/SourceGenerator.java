@@ -15,6 +15,15 @@ public abstract class SourceGenerator {
     		String indent = "    ";
     		return indent + s.replaceAll("\n", "\n" + indent);
     }
+    public boolean dependsOnlyOnPrimitives(Method m) {
+    		if (!m.getReturnType().isPrimitive())
+    			return false;
+    		for (Class c : m.getParameterTypes())
+    			if (!c.isPrimitive())
+    				return false;
+    			
+    		return true;
+    }
     public String toString(Class<?> cls) throws Exception {
         source = cls;
         final Writer result = new StringWriter();
@@ -31,6 +40,33 @@ public abstract class SourceGenerator {
     protected Class<?> cls() {
         return source;
     }
+    
+    static Set<String> getMethodNames(Class c, boolean declaredMethodsOnly) {
+    		Set<String> names = new HashSet<String>();
+    		if (c != null)
+    			for (Method m : (declaredMethodsOnly ? c.getDeclaredMethods() : c.getMethods()))
+				names.add(m.getName());
+		return names;
+    }
+    Method[] methods;
+    protected Method[] methods() {
+    		if (methods == null) {
+    			Class cls = cls();
+    			Set<String> parentMethodNames = getMethodNames(cls.getSuperclass(), false);
+    			Set<String> declaredMethodNames = getMethodNames(cls, true);
+    			List<Method> list = new ArrayList<Method>();
+    			for (Method m : cls.getMethods()) {
+    				String name = m.getName();
+    				//if (name.equals("getClass") && m.getParameterTypes().length == 0)//cls != Object.class) continue;
+    				//	//list.add(m);
+    				
+    				if (m.getDeclaringClass() == cls || parentMethodNames.contains(name) && declaredMethodNames.contains(name))
+    					list.add(m);
+    			}
+    			methods = list.toArray(new Method[list.size()]);
+    		}
+    		return methods;
+    }
 
     public abstract void generate() throws Exception;
 
@@ -45,7 +81,7 @@ public abstract class SourceGenerator {
     }
 
     protected void include(Class<?> cls) {
-        if (CppWrap.isWrapped(cls))
+        if (CppWrap.shouldGenerate(cls) && CppWrap.isWrapped(cls))
             out().println("#include <" + cls.getName().replace('.', '/') + ".hpp>");
     }
 
